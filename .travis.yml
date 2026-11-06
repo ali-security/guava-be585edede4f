@@ -6,15 +6,24 @@ jdk:
   - openjdk8
   - openjdk11
 
-addons:
-  apt:
-    packages:
-      - openjdk-8-source
+# Maven 3.9's maven-install-plugin 3.x rejects guava-tests (jar packaging with only a
+# test-jar attached); use the Maven 3.6 line Travis provided when this release was built.
+# Fetched from Maven Central with retries: archive.apache.org times out from Travis workers.
+before_install:
+  - travis_retry curl -fsSL --retry 3 --retry-connrefused --connect-timeout 30 -o $HOME/apache-maven-3.6.3-bin.tar.gz https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.6.3/apache-maven-3.6.3-bin.tar.gz
+  - tar xzf $HOME/apache-maven-3.6.3-bin.tar.gz -C $HOME
+  - export PATH=$HOME/apache-maven-3.6.3/bin:$PATH
+  - mvn -v
 
 install: mvn -B -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn install -U -DskipTests=true -f $ROOT_POM
 
 # https://docs.travis-ci.com/user/common-build-problems/#build-times-out-because-no-output-was-received
-script: travis_wait 60 mvn -B -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn verify -U -Dmaven.javadoc.skip=true -f $ROOT_POM
+script:
+  - travis_wait 60 mvn -B -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn verify -U -Dmaven.javadoc.skip=true -f $ROOT_POM
+  - python3 util/print_skipped_tests.py
+
+after_script:
+  - sh util/wait_for_travis_log.sh
 
 after_success:
   - util/deploy_snapshot.sh
